@@ -16,6 +16,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <unistd.h>
+#include <sys/wait.h>
+#include <stdlib.h>
 /***********************************************************************
  * run_command()
  *
@@ -30,10 +33,33 @@
  */
 int run_command(int nr_tokens, char *tokens[])
 {
-	if (strcmp(tokens[0], "exit") == 0) return 0;
+        if (strcmp(tokens[0], "exit") == 0) return 0;
 
-	fprintf(stderr, "Unable to execute %s\n", tokens[0]);
-	return 1;
+        pid_t pid;
+        pid=fork();
+        if(pid<0) return -1;
+
+        if(pid==0){//child process
+
+        if(execvp(tokens[0],tokens)==-1){
+                exit(1);
+        }
+        exit(0);
+
+        }
+
+        int status;
+        if(pid>0){
+                while(wait(&status)!=pid){
+                        continue;
+                }
+                if(status!=0)
+                {
+                        fprintf(stderr, "Unable to execute %s\n", tokens[0]);
+                }
+
+        }
+        return 1;
 }
 
 
