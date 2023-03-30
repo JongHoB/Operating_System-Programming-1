@@ -19,6 +19,34 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <stdlib.h>
+
+/***********************************************************************
+ * change_directory()
+ *
+ */
+void change_directory(char *tokens[]){
+	char *cmd=(char*)malloc(sizeof(char)*100);
+	if(tokens[1]==NULL||strcmp(tokens[1],"~")==0){
+		chdir(getenv("HOME"));
+	}
+	else{
+		strcpy(cmd,tokens[1]);
+		if(strncmp(cmd,"~",1)==0){
+			char *temp=(char*)malloc(sizeof(char)*100);
+			char *home=getenv("HOME");
+			strcpy(temp,home);	
+			strcat(temp,(cmd+1));
+			free(cmd);
+			cmd=temp;
+		}
+		if(chdir(cmd)==-1){
+			fprintf(stderr,"-bash: cd: %s: No such file or directory\n",tokens[1]);
+		}
+	}
+	free(cmd);
+	return;
+}
+
 /***********************************************************************
  * run_command()
  *
@@ -34,6 +62,10 @@
 int run_command(int nr_tokens, char *tokens[])
 {
         if (strcmp(tokens[0], "exit") == 0) return 0;
+		if(strcmp(tokens[0],"cd")==0){
+			change_directory(tokens);
+			return 1;
+		}
 
         pid_t pid;
         pid=fork();
