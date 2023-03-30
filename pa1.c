@@ -41,11 +41,10 @@ int run_command(int nr_tokens, char *tokens[])
 
         if(pid==0){//child process
 
-        if(execvp(tokens[0],tokens)==-1){
-                exit(1);
+        if(execvp(tokens[0],tokens)<0){
+            fprintf(stderr, "Unable to execute %s\n", tokens[0]);                
         }
         exit(0);
-
         }
 
         int status;
@@ -53,14 +52,10 @@ int run_command(int nr_tokens, char *tokens[])
                 while(wait(&status)!=pid){
                         continue;
                 }
-                if(status!=0)
-                {
-                        fprintf(stderr, "Unable to execute %s\n", tokens[0]);
-                }
-
         }
         return 1;
 }
+
 
 
 /***********************************************************************
