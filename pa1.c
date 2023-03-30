@@ -19,18 +19,31 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <stdlib.h>
+#include "types.h"
+#include "list_head.h"
+#define MAX_NR_TOKENS	32
 
+struct entry {
+	struct list_head list;
+	char *alias;
+	char **content;
+	int nr_tokens;
+};
+struct list_head stack;
+LIST_HEAD(stack); 
 /***********************************************************************
  * change_directory()
  *
  */
+
 void change_directory(char *tokens[]){
-	char *cmd=(char*)malloc(sizeof(char)*100);
+	char *cmd;
 	if(tokens[1]==NULL||strcmp(tokens[1],"~")==0){
 		chdir(getenv("HOME"));
+		return;
 	}
 	else{
-		strcpy(cmd,tokens[1]);
+		cmd=strdup(tokens[1]);
 		if(strncmp(cmd,"~",1)==0){
 			char *temp=(char*)malloc(sizeof(char)*100);
 			char *home=getenv("HOME");
@@ -40,10 +53,71 @@ void change_directory(char *tokens[]){
 			cmd=temp;
 		}
 		if(chdir(cmd)==-1){
-			fprintf(stderr,"-bash: cd: %s: No such file or directory\n",tokens[1]);
+			fprintf(stderr,"-mash: cd: %s: No such file or directory\n",tokens[1]);
 		}
 	}
 	free(cmd);
+	return;
+}
+
+/***********************************************************************
+ * alias()
+ *
+ */
+void alias(char *tokens[],int nr_tokens){
+	if(tokens[1]==NULL){
+		if(list_empty(&stack)) return;
+		else{
+			struct entry * temp=NULL;
+			list_for_each_entry_reverse(temp,&stack,list){
+				fprintf(stderr,"%s:",temp->alias);
+				for(int i=0;i<(temp->nr_tokens);i++){
+					fprintf(stderr," %s",temp->content[i]);
+				}
+				fprintf(stderr,"\n");
+			}
+		}
+		return;
+		}
+	else{
+	struct entry * temp=(struct entry*)malloc(sizeof(struct entry));
+	temp->alias=strdup(tokens[1]);
+	temp->nr_tokens=nr_tokens-2;
+	temp->content=(char**)malloc(sizeof(char*)*(nr_tokens-2));
+	for(int i=0;i<nr_tokens-2;i++){
+		temp->content[i]=strdup(tokens[i+2]);
+	}
+	list_add(&(temp->list),&stack);
+	}
+	return;
+}
+
+/***********************************************************************
+ * check_alias()
+ *
+ */
+void check_alias(char* tokens[],int nr_tokens){
+	char *temp_tokens[MAX_NR_TOKENS]={ NULL };
+	for(int i=0;i<nr_tokens;i++){
+		temp_tokens[i]=strdup(tokens[i]);
+	}
+	int idx=1;
+	for(int i=1;i<nr_tokens;i++){
+		struct entry * temp=NULL;
+		list_for_each_entry_reverse(temp,&stack,list){
+			if(strcmp(temp->alias,temp_tokens[i])==0){
+				for(int j=0;j<temp->nr_tokens;j++){
+					free(tokens[idx]);
+					tokens[idx]=strdup(temp->content[j]);
+					idx++;
+				}
+				break;
+			}
+	}	
+	}
+	for(int i=0;i<MAX_NR_TOKENS;i++){
+		free(temp_tokens[i]);
+	}	
 	return;
 }
 
@@ -66,6 +140,12 @@ int run_command(int nr_tokens, char *tokens[])
 			change_directory(tokens);
 			return 1;
 		}
+		if(strcmp(tokens[0],"alias")==0){
+			alias(tokens,nr_tokens);
+			return 1;
+		}
+
+		check_alias(tokens,nr_tokens);
 
         pid_t pid;
         pid=fork();
@@ -73,10 +153,10 @@ int run_command(int nr_tokens, char *tokens[])
 
         if(pid==0){//child process
 
-        if(execvp(tokens[0],tokens)<0){
-            fprintf(stderr, "Unable to execute %s\n", tokens[0]);                
-        }
-        exit(0);
+        	if(execvp(tokens[0],tokens)<0){
+            	fprintf(stderr, "Unable to execute %s\n", tokens[0]);                
+        	}
+        	exit(0);
         }
 
         int status;
@@ -87,8 +167,6 @@ int run_command(int nr_tokens, char *tokens[])
         }
         return 1;
 }
-
-
 
 /***********************************************************************
  * initialize()
@@ -105,7 +183,6 @@ int initialize(int argc, char * const argv[])
 {
 	return 0;
 }
-
 
 /***********************************************************************
  * finalize()
