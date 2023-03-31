@@ -15,7 +15,6 @@
 
 #include <stdio.h>
 #include <string.h>
-
 #include <unistd.h>
 #include <sys/wait.h>
 #include <stdlib.h>
@@ -29,21 +28,26 @@ struct entry {
 	char **content;
 	int nr_tokens;
 };
+
 struct list_head stack;
-LIST_HEAD(stack); 
+LIST_HEAD(stack);
+
 /***********************************************************************
  * change_directory()
  *
  */
 
 void change_directory(char *tokens[]){
+	
 	char *cmd;
+	
 	if(tokens[1]==NULL||strcmp(tokens[1],"~")==0){
 		chdir(getenv("HOME"));
 		return;
 	}
 	else{
 		cmd=strdup(tokens[1]);
+
 		if(strncmp(cmd,"~",1)==0){
 			char *temp=(char*)malloc(sizeof(char)*100);
 			char *home=getenv("HOME");
@@ -52,10 +56,12 @@ void change_directory(char *tokens[]){
 			free(cmd);
 			cmd=temp;
 		}
+
 		if(chdir(cmd)==-1){
 			fprintf(stderr,"-mash: cd: %s: No such file or directory\n",tokens[1]);
 		}
 	}
+
 	free(cmd);
 	return;
 }
@@ -66,11 +72,13 @@ void change_directory(char *tokens[]){
  */
 void alias(char *tokens[],int nr_tokens){
 	if(tokens[1]==NULL){
+		
 		if(list_empty(&stack)) return;
 		else{
 			struct entry * temp=NULL;
 			list_for_each_entry_reverse(temp,&stack,list){
 				fprintf(stderr,"%s:",temp->alias);
+
 				for(int i=0;i<(temp->nr_tokens);i++){
 					fprintf(stderr," %s",temp->content[i]);
 				}
@@ -80,14 +88,15 @@ void alias(char *tokens[],int nr_tokens){
 		return;
 		}
 	else{
-	struct entry * temp=(struct entry*)malloc(sizeof(struct entry));
-	temp->alias=strdup(tokens[1]);
-	temp->nr_tokens=nr_tokens-2;
-	temp->content=(char**)malloc(sizeof(char*)*(nr_tokens-2));
-	for(int i=0;i<nr_tokens-2;i++){
+		struct entry * temp=(struct entry*)malloc(sizeof(struct entry));
+		temp->alias=strdup(tokens[1]);
+		temp->nr_tokens=nr_tokens-2;
+		temp->content=(char**)malloc(sizeof(char*)*(nr_tokens-2));
+		
+		for(int i=0;i<nr_tokens-2;i++){
 		temp->content[i]=strdup(tokens[i+2]);
-	}
-	list_add(&(temp->list),&stack);
+		}
+		list_add(&(temp->list),&stack);
 	}
 	return;
 }
@@ -101,7 +110,9 @@ void check_alias(char* tokens[],int nr_tokens,int*pipeidx){
 	for(int i=0;i<nr_tokens;i++){
 		temp_tokens[i]=strdup(tokens[i]);
 	}
+	
 	int idx=0;
+	
 	for(int i=0;i<nr_tokens;i++){
 		bool b=false;
 		struct entry * temp=NULL;
@@ -124,6 +135,7 @@ void check_alias(char* tokens[],int nr_tokens,int*pipeidx){
 			idx++;
 		}
 	}
+	
 	for(int i=0;i<MAX_NR_TOKENS;i++){
 		free(temp_tokens[i]);
 	}	
@@ -158,10 +170,9 @@ int run_command(int nr_tokens, char *tokens[])
 
 	check_alias(tokens,nr_tokens,&pipeidx);
 	
-
 	int pipefd[2];
 	if(pipe(pipefd)==-1){
-				return -1;
+		return -1;
 	}
 
     pid_t pid,pid2;
@@ -173,12 +184,13 @@ int run_command(int nr_tokens, char *tokens[])
 		if(pipeidx<0){
 			if(execvp(tokens[0],tokens)<0){
         	   	fprintf(stderr, "Unable to execute %s\n", tokens[0]);                
-       	}
+       		}
 		}
 		else{	
 			close(pipefd[0]);
 			dup2(pipefd[1],1);
 			close(pipefd[1]);
+			
 			char**pipetokens=(char**)malloc(sizeof(char*)*(pipeidx+1));
 			memcpy(pipetokens,tokens,sizeof(char*)*pipeidx);
 			pipetokens[pipeidx]=NULL;
@@ -186,7 +198,7 @@ int run_command(int nr_tokens, char *tokens[])
 				fprintf(stderr, "Unable to execute %s\n", pipetokens[0]); 
 			}
 		}
-        	exit(0);
+        exit(0);
     }
 	else{
 		if(pipeidx>=0){
@@ -205,8 +217,7 @@ int run_command(int nr_tokens, char *tokens[])
                 close(pipefd[0]);
                 close(pipefd[1]);
               
-                waitpid(pid,NULL,0);
-             
+                waitpid(pid,NULL,0); 
                 waitpid(pid2,NULL,0);
 			}
         }
