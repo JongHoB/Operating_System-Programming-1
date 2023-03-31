@@ -103,9 +103,11 @@ void check_alias(char* tokens[],int nr_tokens){
 	}
 	int idx=1;
 	for(int i=1;i<nr_tokens;i++){
+		bool b=false;
 		struct entry * temp=NULL;
 		list_for_each_entry_reverse(temp,&stack,list){
 			if(strcmp(temp->alias,temp_tokens[i])==0){
+				b=true;
 				for(int j=0;j<temp->nr_tokens;j++){
 					free(tokens[idx]);
 					tokens[idx]=strdup(temp->content[j]);
@@ -113,7 +115,11 @@ void check_alias(char* tokens[],int nr_tokens){
 				}
 				break;
 			}
-	}	
+		}
+		if(!b){
+			tokens[idx]=strdup(temp_tokens[i]);
+			idx++;
+		}
 	}
 	for(int i=0;i<MAX_NR_TOKENS;i++){
 		free(temp_tokens[i]);
@@ -135,37 +141,37 @@ void check_alias(char* tokens[],int nr_tokens){
  */
 int run_command(int nr_tokens, char *tokens[])
 {
-        if (strcmp(tokens[0], "exit") == 0) return 0;
-		if(strcmp(tokens[0],"cd")==0){
-			change_directory(tokens);
-			return 1;
-		}
-		if(strcmp(tokens[0],"alias")==0){
-			alias(tokens,nr_tokens);
-			return 1;
-		}
 
-		check_alias(tokens,nr_tokens);
+    if (strcmp(tokens[0], "exit") == 0) return 0;
+	if(strcmp(tokens[0],"cd")==0){
+		change_directory(tokens);
+		return 1;
+	}
+	if(strcmp(tokens[0],"alias")==0){
+		alias(tokens,nr_tokens);
+		return 1;
+	}
 
-        pid_t pid;
-        pid=fork();
-        if(pid<0) return -1;
+	check_alias(tokens,nr_tokens);
 
-        if(pid==0){//child process
+    pid_t pid;
+    pid=fork();
+    if(pid<0) return -1;
 
-        	if(execvp(tokens[0],tokens)<0){
-            	fprintf(stderr, "Unable to execute %s\n", tokens[0]);                
-        	}
+    if(pid==0){
+     	if(execvp(tokens[0],tokens)<0){
+           	fprintf(stderr, "Unable to execute %s\n", tokens[0]);                
+       	}
         	exit(0);
-        }
+    }
 
-        int status;
-        if(pid>0){
-                while(wait(&status)!=pid){
-                        continue;
-                }
-        }
-        return 1;
+    int status;
+    if(pid>0){
+        while(wait(&status)!=pid){
+            continue;
+            }
+    }
+    return 1;
 }
 
 /***********************************************************************
