@@ -96,13 +96,13 @@ void alias(char *tokens[],int nr_tokens){
  * check_alias()
  *
  */
-void check_alias(char* tokens[],int nr_tokens){
+void check_alias(char* tokens[],int nr_tokens,int*pipeidx){
 	char *temp_tokens[MAX_NR_TOKENS]={ NULL };
 	for(int i=0;i<nr_tokens;i++){
 		temp_tokens[i]=strdup(tokens[i]);
 	}
-	int idx=1;
-	for(int i=1;i<nr_tokens;i++){
+	int idx=0;
+	for(int i=0;i<nr_tokens;i++){
 		bool b=false;
 		struct entry * temp=NULL;
 		list_for_each_entry_reverse(temp,&stack,list){
@@ -118,6 +118,9 @@ void check_alias(char* tokens[],int nr_tokens){
 		}
 		if(!b){
 			tokens[idx]=strdup(temp_tokens[i]);
+			if(strncmp(temp_tokens[i],"|",1)==0){
+				*pipeidx=idx;
+			}
 			idx++;
 		}
 	}
@@ -141,7 +144,6 @@ void check_alias(char* tokens[],int nr_tokens){
  */
 int run_command(int nr_tokens, char *tokens[])
 {
-
     if (strcmp(tokens[0], "exit") == 0) return 0;
 	if(strcmp(tokens[0],"cd")==0){
 		change_directory(tokens);
@@ -152,25 +154,69 @@ int run_command(int nr_tokens, char *tokens[])
 		return 1;
 	}
 
-	check_alias(tokens,nr_tokens);
+	int pipeidx=-1;
 
-    pid_t pid;
+	check_alias(tokens,nr_tokens,&pipeidx);
+	
+
+	int pipefd[2];
+	if(pipe(pipefd)==-1){
+				return -1;
+	}
+
+    pid_t pid,pid2;
     pid=fork();
+
     if(pid<0) return -1;
 
     if(pid==0){
-     	if(execvp(tokens[0],tokens)<0){
-           	fprintf(stderr, "Unable to execute %s\n", tokens[0]);                
+		if(pipeidx<0){
+			if(execvp(tokens[0],tokens)<0){
+        	   	fprintf(stderr, "Unable to execute %s\n", tokens[0]);                
        	}
+		}
+		else{	
+			close(pipefd[0]);
+			dup2(pipefd[1],1);
+			close(pipefd[1]);
+			char**pipetokens=(char**)malloc(sizeof(char*)*(pipeidx+1));
+			memcpy(pipetokens,tokens,sizeof(char*)*pipeidx);
+			pipetokens[pipeidx]=NULL;
+			if(execvp(pipetokens[0],pipetokens)<0){
+				fprintf(stderr, "Unable to execute %s\n", pipetokens[0]); 
+			}
+		}
         	exit(0);
     }
-
-    int status;
-    if(pid>0){
-        while(wait(&status)!=pid){
-            continue;
-            }
-    }
+	else{
+		if(pipeidx>=0){
+			pid2=fork();
+			if(pid2<0) return -1;
+			if(pid2==0){
+				close(pipefd[1]);
+				dup2(pipefd[0],0);
+				close(pipefd[0]);
+				if(execvp(tokens[pipeidx+1],(tokens+pipeidx+1))<0){
+					fprintf(stderr, "Unable to execute %s\n", tokens[0]); 	
+				}
+				exit(0);
+			}
+            if(pid2>0){
+                close(pipefd[0]);
+                close(pipefd[1]);
+              
+                waitpid(pid,NULL,0);
+             
+                waitpid(pid2,NULL,0);
+			}
+        }
+        else{
+            close(pipefd[0]);
+            close(pipefd[1]);
+          
+            waitpid(pid,NULL,0);
+       }
+        }
     return 1;
 }
 
